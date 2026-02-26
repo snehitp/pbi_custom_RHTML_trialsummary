@@ -1,0 +1,26 @@
+{
+  "visual": {
+    "name": "helloWorldRHTML",
+    "displayName": "Hello World RHTML",
+    "guid": "helloWorldRHTML8E5574162F174C2FB11A4753974807A8",
+    "visualClassName": "Visual",
+    "version": "1.0.0.0",
+    "description": "A template Power BI custom visual using R and HTML (RHTML). Produces interactive plotly charts from R scripts.",
+    "supportUrl": "https://github.com/YOUR_USERNAME/pbi_custom_RHTML_template",
+    "gitHubUrl": "https://github.com/YOUR_USERNAME/pbi_custom_RHTML_template"
+  },
+  "apiVersion": "5.1.0",
+  "author": {
+    "name": "Your Name",
+    "email": "your.email@example.com"
+  },
+  "assets": {
+    "icon": "assets/icon.png"
+  },
+  "externalJS": null,
+  "style": "style/visual.less",
+  "capabilities": "capabilities.json",
+  "dependencies": "dependencies.json",
+  "stringResources": [],
+  "version": "1.0.0.0"
+}
