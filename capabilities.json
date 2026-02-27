@@ -1,13 +1,57 @@
 {
   "dataRoles": [
     {
-      "displayName": "Values",
+      "displayName": "CAR Target",
+      "description": "The CAR target name (e.g., CD19, CD22, GD2)",
       "kind": "GroupingOrMeasure",
-      "name": "Values"
+      "name": "car_target"
+    },
+    {
+      "displayName": "Cancer Type",
+      "description": "The cancer type or indication",
+      "kind": "GroupingOrMeasure",
+      "name": "cancer_type"
+    },
+    {
+      "displayName": "Start Date",
+      "description": "Trial start date",
+      "kind": "GroupingOrMeasure",
+      "name": "start_date"
+    },
+    {
+      "displayName": "End Date",
+      "description": "Estimated trial end date",
+      "kind": "GroupingOrMeasure",
+      "name": "end_date"
+    },
+    {
+      "displayName": "Mouse Over",
+      "description": "Additional attributes shown on hover (optional, accepts multiple fields)",
+      "kind": "GroupingOrMeasure",
+      "name": "mouseover"
     }
   ],
   "dataViewMappings": [
     {
+      "conditions": [
+        {
+          "car_target": {
+            "max": 1
+          },
+          "cancer_type": {
+            "max": 1
+          },
+          "start_date": {
+            "max": 1
+          },
+          "end_date": {
+            "max": 1
+          },
+          "mouseover": {
+            "min": 0
+          }
+        }
+      ],
       "scriptResult": {
         "dataInput": {
           "table": {
@@ -15,7 +59,27 @@
               "select": [
                 {
                   "for": {
-                    "in": "Values"
+                    "in": "car_target"
+                  }
+                },
+                {
+                  "for": {
+                    "in": "cancer_type"
+                  }
+                },
+                {
+                  "for": {
+                    "in": "start_date"
+                  }
+                },
+                {
+                  "for": {
+                    "in": "end_date"
+                  }
+                },
+                {
+                  "for": {
+                    "in": "mouseover"
                   }
                 }
               ],
@@ -62,7 +126,9 @@
   "privileges": [
     {
       "name": "WebAccess",
-      "parameters": ["https://cdn.plot.ly/"]
+      "parameters": [
+        "https://cdn.plot.ly/"
+      ]
     }
   ]
 }

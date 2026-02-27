@@ -1,18 +1,18 @@
 {
   "visual": {
-    "name": "helloWorldRHTML",
-    "displayName": "Hello World RHTML",
-    "guid": "helloWorldRHTML8E5574162F174C2FB11A4753974807A8",
+    "name": "stanfordCARTTrialTimeline",
+    "displayName": "Stanford CAR-T Trial Timeline",
+    "guid": "stanfordCARTTrialTimelineF7A3B9E12C4D56F8901A2B3C4D5E6F70",
     "visualClassName": "Visual",
     "version": "1.0.0.0",
-    "description": "A template Power BI custom visual using R and HTML (RHTML). Produces interactive plotly charts from R scripts.",
-    "supportUrl": "https://github.com/YOUR_USERNAME/pbi_custom_RHTML_template",
-    "gitHubUrl": "https://github.com/YOUR_USERNAME/pbi_custom_RHTML_template"
+    "description": "Interactive swimlane timeline of Stanford investigator-initiated CAR-T clinical trials, colored by CAR target. Built with R plotly.",
+    "supportUrl": "https://github.com/snehitp/pbi_custom_RHTML_trialsummary",
+    "gitHubUrl": "https://github.com/snehitp/pbi_custom_RHTML_trialsummary"
   },
   "apiVersion": "5.1.0",
   "author": {
-    "name": "Your Name",
-    "email": "your.email@example.com"
+    "name": "Snehit Patel",
+    "email": "snehit@stanford.edu"
   },
   "assets": {
     "icon": "assets/icon.png"

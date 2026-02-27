@@ -1,293 +1,173 @@
-# Power BI Custom Visual: R + HTML (RHTML) Template
+# Power BI Custom Visual: Swimlane Timeline (RHTML)
 
-A starter template for building **interactive** Power BI custom visuals using **R** and **HTML**. Unlike standard R visuals (which produce static PNG images), RHTML visuals produce interactive HTML output with hover tooltips, zooming, panning, and click events via [plotly](https://plotly.com/r/) and [htmlwidgets](https://www.htmlwidgets.org/).
+An interactive Power BI custom visual that renders a **swimlane / Gantt-style timeline chart** using R and plotly. Each row is a horizontal bar spanning a date range, colored by a grouping category, with rich hover tooltips. Built on top of the [RHTML custom visual template](https://github.com/snehitp/pbi_custom_RHTML_template).
 
-## Quick Comparison
+![Timeline screenshot](sample_data/stanford_iit_timeline.png)
 
-| Feature | R Visual | RHTML Visual (this template) |
-|---|---|---|
-| Output | Static PNG | Interactive HTML |
-| Hover/zoom/pan | No | Yes |
-| Publish to web | No | Yes |
-| R engine required | Yes | Yes |
+## Features
 
-## Prerequisites
+- **Swimlane bars** from Start Date to End Date on a date-scaled X-axis
+- **Y-axis labels** formatted as `CAR Target (Cancer Type)` from two input fields
+- **Auto-colored by category** — unique values of the first field are assigned distinct colors from a 20-color palette
+- **Solid / projected split** — bars are solid up to today's date and semi-transparent (40% opacity) for the projected future portion
+- **"Today" reference line** — red dashed vertical line with date annotation
+- **Hover tooltips** — show start/end dates plus any additional fields dragged into the Mouse Over well
+- **Fully interactive** — zoom, pan, and hover via plotly.js
+- **General-purpose** — no hardcoded data; works with any dataset
 
-Install these before getting started:
+## Data Roles (Field Wells)
 
-1. **Node.js** (v18+) - [nodejs.org](https://nodejs.org/)
-2. **R** (v4.0+) - [cran.r-project.org](https://cran.r-project.org/bin/windows/base/)
-3. **Power BI Desktop** - [powerbi.microsoft.com](https://powerbi.microsoft.com/desktop/)
-4. **Power BI Visuals Tools (pbiviz)** - install globally:
+| Well | Required | Max Fields | Description |
+|------|----------|------------|-------------|
+| **CAR Target** | Yes | 1 | Category for color grouping and label prefix |
+| **Cancer Type** | Yes | 1 | Sub-category for label suffix (shown in parentheses) |
+| **Start Date** | Yes | 1 | Date field — where the bar begins on the X-axis |
+| **End Date** | No | 1 | Date field — where the bar ends. Defaults to Start Date + 4 years if not provided |
+| **Mouse Over** | No | Unlimited | Any additional fields shown in the hover tooltip |
+
+The visual renders nothing until CAR Target, Cancer Type, and Start Date are all populated.
+
+## Quick Start
+
+### Prerequisites
+
+1. **Node.js** (v18+) — [nodejs.org](https://nodejs.org/)
+2. **R** (v4.0+) — [cran.r-project.org](https://cran.r-project.org/bin/windows/base/)
+3. **Power BI Desktop** — [powerbi.microsoft.com](https://powerbi.microsoft.com/desktop/)
+4. **pbiviz CLI**:
    ```bash
    npm install -g powerbi-visuals-tools
    ```
-5. **SSL Certificate** (one-time setup for dev server):
-   ```bash
-   pbiviz --install-cert
-   ```
 
-### R Packages
-
-The following R packages are required (Power BI auto-installs them, but you can pre-install):
-
-```r
-install.packages(c("ggplot2", "plotly", "htmlwidgets", "xml2"))
-```
-
-## How to Use It
-
-1. **Build**: `npm run package` - creates the `.pbiviz` file in `dist/`
-2. **Import**: In Power BI Desktop, go to Visualizations pane > `...` > "Import a visual from a file" > select the `.pbiviz` from `dist/`
-3. **Use**: Drag the visual onto your canvas, then drag data fields into the **Values** well
-
-### How to Customize (Quick Reference)
-
-- Edit `script.r` - this is where your R visualization code goes
-- The `Values` dataframe arrives from Power BI with whatever columns the user drags in
-- The script creates a ggplot2 chart, converts it to interactive plotly, and saves as `out.html`
-- Swap in any example from `examples/` to try different chart types (bar, scatter, line)
-- Add new R packages via `dependencies.json`
-
-### Key Things to Change for a New Visual
-
-1. **`pbiviz.json`**: Update `name`, `displayName`, `guid` (generate a new one), `author`
-2. **`script.r`**: Your visualization logic
-3. **`dependencies.json`**: Any additional R packages you need
-4. **`capabilities.json`**: Data roles if you want separate Category/Measure wells
-
-## Getting Started
-
-### 1. Install dependencies
+### Build and Import
 
 ```bash
 npm install
-```
-
-### 2. Build the visual
-
-```bash
 npm run package
 ```
 
-This creates a `.pbiviz` file in the `dist/` folder.
+Then in Power BI Desktop: Visualizations pane > `...` > **Import a visual from a file** > select the `.pbiviz` from `dist/`.
 
-### 3. Import into Power BI
+Drag the visual onto your canvas and populate the field wells from your data model.
 
-1. Open **Power BI Desktop**
-2. In the Visualizations pane, click the **...** (ellipsis) menu
-3. Select **Import a visual from a file**
-4. Browse to `dist/helloWorldRHTML.pbiviz`
-5. The visual appears in the Visualizations pane
-6. Drag it onto your report canvas
-7. Drag data fields into the **Values** well
+## Development History
+
+This visual was built iteratively from an RHTML template through several rounds of refinement.
+
+### Starting Point: RHTML Template
+
+The project began as a fork of a generic RHTML custom visual template. The template provided:
+- The TypeScript scaffolding (`visual.ts`, `htmlInjectionUtility.ts`, `settings.ts`) that receives base64-encoded HTML from the R engine and injects it into the Power BI DOM
+- The `flatten_HTML.r` utility that embeds external JS/CSS inline and swaps local plotly.js for a CDN reference
+- A single "Values" data role with a sample bar chart in `script.r`
+
+The reference screenshot (`sample_data/stanford_iit_timeline.png`) of a Stanford CAR-T trial timeline was used as the design target for the swimlane chart layout.
+
+### v1: Initial Implementation
+
+**`capabilities.json`** was rewritten with 5 data roles (CAR Target, Cancer Type, Start Date, End Date, Mouse Over) mapped to a single `scriptResult` table input. **`script.r`** was rewritten to build a plotly Gantt chart using `type = "scatter", mode = "lines"` with thick line widths to form horizontal bars.
+
+**Bug: Fields could not be dragged into the visual.** The data roles used `"kind": "Grouping"` which rejected fields typed as measures in the data model, and `"min": 1` conditions on all 4 required roles created a validation deadlock — Power BI couldn't satisfy all minimums simultaneously during incremental field adds.
+
+**Fix:** Changed all roles to `"kind": "GroupingOrMeasure"`, removed `min` constraints (kept only `max: 1`), and explicitly added `mouseover` to the conditions block (Power BI defaults unmentioned roles to `max: 0`).
+
+### v2: Removing Hardcoded Data
+
+**Bug: The visual rendered a full chart even with only one field populated.** The R script contained a large hardcoded sample dataset that it fell back to whenever not all data roles were detected. With only CAR Target populated, the other roles weren't found, so the sample data rendered.
+
+**Fix:** Removed all hardcoded sample data. The script now outputs a blank placeholder with an instructional message when required fields are missing, and exits early with `quit()`.
+
+### v3: Making It General-Purpose
+
+**Bug: The color palette was hardcoded to specific CAR target names** (CD19, CD22, GD2, etc.) using string-matching regex. The chart title was also hardcoded to "Stanford Investigator-Initiated CAR-T Trials".
+
+**Fix:** Replaced the string-matching color function with a generic auto-assignment palette (plotly's D3 category20 colors). Colors are assigned in order of first appearance to each unique value of the first field. Removed the hardcoded title.
+
+### v4: Fixing Hover and Broken Bars
+
+**Bug 1: Hover tooltips only triggered near the "Today" line**, not on the actual bars. Each bar was drawn as a scatter line trace with only 2 data points (start and end). With `hovermode = "closest"`, plotly snapped to whichever of the few data points was nearest — usually the Today line.
+
+**Bug 2: Projected (future) bars rendered as jagged/broken rectangles.** Using `dash = "dot"` on a `line.width = 20` trace caused the dot pattern to render as disconnected blocks.
+
+**Fix for hover:** Each bar segment is now interpolated with ~1 point per month (via `make_date_seq()`), creating a dense sequence of hover targets along the full length of the bar.
+
+**Fix for broken bars:** Replaced `dash = "dot"` with `opacity = 0.4` for the projected portion. This renders a clean, lighter bar that clearly distinguishes past from future without visual artifacts.
 
 ## Project Structure
 
 ```
-├── script.r                    # ← YOUR R CODE GOES HERE
+├── script.r                    # R visualization code (swimlane timeline)
 ├── r_files/
-│   └── flatten_HTML.r          # Utility: embeds JS/CSS inline into HTML (do not modify)
+│   └── flatten_HTML.r          # Utility: embeds JS/CSS inline (do not modify)
 ├── src/
-│   ├── visual.ts               # TypeScript: receives HTML from R and injects into DOM
+│   ├── visual.ts               # TypeScript: receives HTML from R, injects into DOM
 │   ├── htmlInjectionUtility.ts  # TypeScript: HTML parsing/injection helpers
 │   └── settings.ts             # TypeScript: formatting pane settings model
 ├── style/
 │   └── visual.less             # CSS styles for the visual container
-├── capabilities.json           # Data roles, mappings, and script output type
+├── capabilities.json           # Data roles, field constraints, script output config
 ├── dependencies.json           # R package (CRAN) dependencies
-├── pbiviz.json                 # Visual metadata (name, GUID, version)
-├── package.json                # npm dependencies
-├── examples/                   # Example R scripts you can swap into script.r
+├── pbiviz.json                 # Visual metadata (name, GUID, version, author)
+├── package.json                # npm dependencies and build scripts
+├── sample_data/
+│   ├── Trials.xlsx             # Sample dataset of Stanford CAR-T trials
+│   └── stanford_iit_timeline.png  # Reference screenshot used during development
+├── examples/                   # Example R scripts from the original template
 │   ├── bar_chart.r
 │   ├── scatter_plot.r
 │   └── line_chart.r
 └── assets/
-    └── icon.png                # 20x20 icon shown in the Visualizations pane
+    └── icon.png                # 20x20 icon in the Visualizations pane
 ```
 
 ## How It Works
 
-The data pipeline flows like this:
-
 ```
-Power BI Data → R Engine → HTML Widget → TypeScript → DOM
-```
-
-1. **Power BI** sends your data to R as a dataframe called `Values` (the name matches the `dataRoles` in `capabilities.json`)
-2. **`script.r`** runs in the R engine, builds a `ggplot2` chart, converts it to an interactive `plotly` widget, and saves it as `out.html`
-3. **`flatten_HTML.r`** embeds all external JS/CSS files inline into a single self-contained HTML file
-4. **Power BI** base64-encodes the HTML and passes it to the TypeScript layer
-5. **`visual.ts`** decodes the payload and injects the `<head>` (scripts/styles) and `<body>` (chart) into the DOM
-
-## Customizing the Visual
-
-### Editing the R Script
-
-The main file you'll edit is **`script.r`**. It follows this pattern:
-
-```r
-# 1. Load utilities (required)
-source('./r_files/flatten_HTML.r')
-
-# 2. Load R libraries
-libraryRequireInstall("ggplot2")
-libraryRequireInstall("plotly")
-
-# 3. Process the "Values" dataframe from Power BI
-# ... your data manipulation and visualization code ...
-
-# 4. Convert to plotly and save (required)
-p <- ggplotly(your_ggplot)
-internalSaveWidget(p, 'out.html')
-
-# 5. Optional: reduce padding
-ReadFullFileReplaceString('out.html', 'out.html', ',"padding":[0-9]*,', ',"padding":0,')
+Power BI Data Model
+    ↓  (fields dragged into data role wells)
+R Engine (script.r)
+    ↓  builds plotly chart from car_target, cancer_type, start_date, end_date, mouseover
+    ↓  saves as out.html
+flatten_HTML.r
+    ↓  embeds JS/CSS inline, swaps plotly.js for CDN reference
+Power BI
+    ↓  base64-encodes the HTML
+visual.ts + htmlInjectionUtility.ts
+    ↓  decodes payload, injects <head> and <body> into DOM
+    ↓  calls HTMLWidgets.staticRender()
+Browser
+    → Interactive plotly chart with hover, zoom, pan
 ```
 
-### Using Example Scripts
+## R Dependencies
 
-Copy any example from `examples/` into `script.r`:
+Declared in `dependencies.json` and auto-installed by Power BI:
 
-```bash
-cp examples/scatter_plot.r script.r
-```
+| Package | Purpose |
+|---------|---------|
+| `plotly` | Interactive chart rendering |
+| `ggplot2` | Dependency of plotly |
+| `htmlwidgets` | Widget serialization to HTML |
+| `xml2` | HTML parsing for the flatten utility |
 
-Then rebuild:
+All packages are approved for use in Power BI Service.
 
-```bash
-npm run package
-```
+## Tips
 
-### Changing Data Roles
-
-By default, the visual has a single data role called "Values" that accepts any fields. To add specific roles (e.g., separate "Category" and "Measure" wells), edit `capabilities.json`:
-
-```json
-{
-  "dataRoles": [
-    {
-      "displayName": "Category",
-      "kind": "Grouping",
-      "name": "Category"
-    },
-    {
-      "displayName": "Measure",
-      "kind": "Measure",
-      "name": "Measure"
-    }
-  ]
-}
-```
-
-In your R script, you'll then have `Category` and `Measure` as separate dataframes.
-
-### Adding R Packages
-
-1. Add the package to **`dependencies.json`**:
-   ```json
-   {
-     "cranPackages": [
-       { "name": "dplyr", "displayName": "dplyr", "url": "https://cran.r-project.org/web/packages/dplyr/index.html" }
-     ]
-   }
-   ```
-2. Use it in `script.r`:
-   ```r
-   libraryRequireInstall("dplyr")
-   ```
-
-Power BI will auto-install declared CRAN packages on first use.
-
-### Adding Visual Properties (Formatting Pane)
-
-To let users configure the visual from Power BI's formatting pane:
-
-1. Add an object to `capabilities.json` under `"objects"`:
-   ```json
-   "settings": {
-     "properties": {
-       "chartColor": {
-         "type": { "fill": { "solid": { "color": true } } }
-       }
-     }
-   }
-   ```
-
-2. Read it in `script.r` with a default fallback:
-   ```r
-   if (!exists("settings_chartColor")) {
-     settings_chartColor <- "#4682B4"
-   }
-   ```
-   The naming convention is `<objectName>_<propertyName>`.
-
-3. Update `src/settings.ts` to register the formatting card.
-
-### Changing the Visual Icon
-
-Replace `assets/icon.png` with your own 20x20 pixel PNG image.
-
-### Generating a New GUID
-
-When creating a new visual from this template, generate a unique GUID. In `pbiviz.json`, change the `guid` field. You can generate one at [guidgenerator.com](https://www.guidgenerator.com/) or via PowerShell:
-
-```powershell
-[guid]::NewGuid().ToString("N")
-```
-
-## Common R + Plotly Patterns
-
-### Direct Plotly (without ggplot2)
-
-```r
-p <- plot_ly(Values, x = ~Category, y = ~Amount, type = 'bar',
-             marker = list(color = 'steelblue'))
-p <- layout(p, title = "My Chart")
-internalSaveWidget(p, 'out.html')
-```
-
-### Heatmap
-
-```r
-p <- plot_ly(z = as.matrix(Values), type = "heatmap")
-internalSaveWidget(p, 'out.html')
-```
-
-### Multiple Traces
-
-```r
-p <- plot_ly(Values) %>%
-  add_trace(x = ~X, y = ~Y1, name = "Series 1", type = "scatter", mode = "lines") %>%
-  add_trace(x = ~X, y = ~Y2, name = "Series 2", type = "scatter", mode = "lines")
-internalSaveWidget(p, 'out.html')
-```
-
-## Tips and Gotchas
-
-- **Output file must be `out.html`** - Power BI looks for exactly this filename
-- **Power BI deduplicates rows** - it applies `unique()` to input data. Add an index column if you need duplicate rows
-- **Reduce HTML size** - aggregate data in R before plotting; large HTML files slow rendering
-- **CDN for plotly.js** - the `flatten_HTML.r` utility replaces local plotly.js with a CDN reference to keep file sizes small. The CDN URL (`https://cdn.plot.ly/`) is whitelisted in `capabilities.json` under `privileges`
-- **Performance** - `updateHTMLHead` in `visual.ts` is `false` by default, meaning `<head>` scripts load only on first render (not on every data refresh). Set to `true` only if you use multiple widget packages
-- **R version** - Power BI Desktop uses the R installation configured in Options > R scripting. Ensure it points to your R installation
+- **Output file must be `out.html`** — Power BI looks for exactly this filename
+- **Power BI deduplicates rows** — it applies `unique()` to input data. Add an index column if you need duplicate rows preserved
+- **CDN for plotly.js** — `flatten_HTML.r` replaces local plotly.js with `https://cdn.plot.ly/` (whitelisted in `capabilities.json` under `privileges`)
+- **End Date defaults** — if the End Date well is empty or contains NAs, bars default to Start Date + 4 years
+- **R version** — Power BI Desktop uses the R installation configured in Options > R scripting
 
 ## Development Commands
 
 | Command | Description |
-|---|---|
+|---------|-------------|
 | `npm install` | Install npm dependencies |
 | `npm run package` | Build the `.pbiviz` file into `dist/` |
-| `npm run start` | Start the dev server (for live reload in Power BI) |
+| `npm run start` | Start dev server for live reload |
 | `npm run lint` | Lint TypeScript files |
-
-## Live Development (Optional)
-
-For a faster development loop:
-
-1. Run `npm run start` (starts dev server on port 8080)
-2. In Power BI Desktop, enable **Developer Visual** in Options > Preview features
-3. The developer visual in the Visualizations pane auto-reloads when you save changes
 
 ## Further Reading
 
@@ -295,4 +175,3 @@ For a faster development loop:
 - [Power BI custom visuals documentation](https://learn.microsoft.com/en-us/power-bi/developer/visuals/)
 - [Plotly R reference](https://plotly.com/r/)
 - [htmlwidgets for R](https://www.htmlwidgets.org/)
-- [RHTML Tutorial (GitHub)](https://github.com/PowerBi-Projects/PowerBI-visuals/blob/master/RVisualTutorial/CreateRHTML.md)
