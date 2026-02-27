@@ -3,13 +3,13 @@
 # =============================================================================
 #
 # DATA ROLES (defined in capabilities.json):
-#   car_target  (required, 1 field)  — Category for color grouping + label prefix
-#   cancer_type (required, 1 field)  — Sub-category for label suffix
-#   start_date  (required, 1 field)  — Bar start date
-#   end_date    (optional, 1 field)  — Bar end date (defaults to start + 4 years)
-#   mouseover   (optional, 0+ fields) — Extra attributes for hover tooltip
+#   program_id       (required, 1 field)  — Y-axis label
+#   program_category (required, 1 field)  — Color grouping + legend
+#   start_date       (required, 1 field)  — Bar start date
+#   end_date         (optional, 1 field)  — Bar end date (defaults to start + 4 years)
+#   mouseover        (optional, 0+ fields) — Extra attributes for hover tooltip
 #
-# Y-AXIS LABELS:  [car_target] ([cancer_type])
+# Y-AXIS LABELS:  [program_id]
 # X-AXIS:         Timeline, auto-ranged from data
 #
 # Each data role arrives in R as a data.frame named after the role.
@@ -26,19 +26,19 @@ libraryRequireInstall("plotly")
 
 # --- Data Handling ---
 # All data comes from PBI data roles. No hardcoded sample data.
-# Required: car_target, cancer_type, start_date
+# Required: program_id, program_category, start_date
 # Optional: end_date (defaults to start_date + 4 years), mouseover
 
-has_data <- (exists("car_target")  && is.data.frame(car_target)  && ncol(car_target)  >= 1 &&
-             exists("cancer_type") && is.data.frame(cancer_type) && ncol(cancer_type) >= 1 &&
-             exists("start_date")  && is.data.frame(start_date)  && ncol(start_date)  >= 1)
+has_data <- (exists("program_id")       && is.data.frame(program_id)       && ncol(program_id)       >= 1 &&
+             exists("program_category") && is.data.frame(program_category) && ncol(program_category) >= 1 &&
+             exists("start_date")       && is.data.frame(start_date)       && ncol(start_date)       >= 1)
 
 if (!has_data) {
   # Not enough fields populated — output a blank placeholder
   p <- plotly_empty() %>%
     layout(
       title = list(
-        text = "Drag CAR Target, Cancer Type, and Start Date into the field wells",
+        text = "Drag Program Identifier, Program Category, and Start Date into the field wells",
         font = list(size = 14, color = "#888888")
       )
     )
@@ -59,10 +59,10 @@ if (exists("end_date") && is.data.frame(end_date) && ncol(end_date) >= 1) {
 }
 
 df <- data.frame(
-  car_target  = as.character(car_target[[1]]),
-  cancer_type = as.character(cancer_type[[1]]),
-  start_date  = sdate,
-  end_date    = edate,
+  program_id       = as.character(program_id[[1]]),
+  program_category = as.character(program_category[[1]]),
+  start_date       = sdate,
+  end_date         = edate,
   stringsAsFactors = FALSE
 )
 
@@ -85,8 +85,8 @@ if (any(swap)) {
   df$end_date[swap] <- tmp
 }
 
-# --- Y-axis labels: "car_target (cancer_type)" ---
-df$label <- paste0(df$car_target, " (", df$cancer_type, ")")
+# --- Y-axis labels: program_id only ---
+df$label <- df$program_id
 
 # De-duplicate identical labels
 if (anyDuplicated(df$label)) {
@@ -95,7 +95,8 @@ if (anyDuplicated(df$label)) {
 
 # --- Hover text ---
 hover_lines <- paste0(
-  "<b>", df$car_target, "</b> (", df$cancer_type, ")",
+  "<b>", df$program_id, "</b>",
+  "<br>Category: ", df$program_category,
   "<br>Start: ", format(df$start_date, "%b %Y"),
   "<br>Est. End: ", format(df$end_date, "%b %Y")
 )
@@ -114,16 +115,16 @@ df <- df[order(df$start_date), ]
 # Plotly draws y-categories bottom-to-top; reverse so earliest is at top
 y_order <- rev(df$label)
 
-# --- Auto-assign colors to unique car_target values ---
+# --- Auto-assign colors to unique program_category values ---
 palette <- c(
   "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
   "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
   "#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
   "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d", "#9edae5"
 )
-unique_targets <- unique(df$car_target)
-color_map <- setNames(rep_len(palette, length(unique_targets)), unique_targets)
-df$color <- color_map[df$car_target]
+unique_categories <- unique(df$program_category)
+color_map <- setNames(rep_len(palette, length(unique_categories)), unique_categories)
+df$color <- color_map[df$program_category]
 
 # --- Build Plotly figure ---
 today <- Sys.Date()
@@ -139,12 +140,12 @@ make_date_seq <- function(d_start, d_end) {
 }
 
 for (i in seq_len(nrow(df))) {
-  tgt   <- df$car_target[i]
+  catg  <- df$program_category[i]
   lbl   <- df$label[i]
   clr   <- df$color[i]
   htxt  <- df$hover_text[i]
 
-  show_leg <- !(tgt %in% legend_shown)
+  show_leg <- !(catg %in% legend_shown)
   has_solid  <- df$start_date[i] <= today
   has_future <- df$end_date[i] > today
 
@@ -156,12 +157,12 @@ for (i in seq_len(nrow(df))) {
       x = xs, y = rep(lbl, length(xs)),
       type = "scatter", mode = "lines",
       line = list(width = 20, color = clr),
-      name = tgt, legendgroup = tgt,
+      name = catg, legendgroup = catg,
       showlegend = show_leg,
       hoverinfo = "text", text = rep(htxt, length(xs))
     )
     if (show_leg) {
-      legend_shown <- c(legend_shown, tgt)
+      legend_shown <- c(legend_shown, catg)
       show_leg <- FALSE
     }
   }
@@ -176,11 +177,11 @@ for (i in seq_len(nrow(df))) {
       type = "scatter", mode = "lines",
       line = list(width = 20, color = clr),
       opacity = 0.4,
-      name = tgt, legendgroup = tgt,
+      name = catg, legendgroup = catg,
       showlegend = show_leg,
       hoverinfo = "text", text = rep(htxt, length(xs))
     )
-    if (show_leg) legend_shown <- c(legend_shown, tgt)
+    if (show_leg) legend_shown <- c(legend_shown, catg)
   }
 }
 

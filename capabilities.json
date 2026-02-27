@@ -1,16 +1,16 @@
 {
   "dataRoles": [
     {
-      "displayName": "CAR Target",
-      "description": "The CAR target name (e.g., CD19, CD22, GD2)",
+      "displayName": "Program Identifier",
+      "description": "The program identifier (used as Y-axis label)",
       "kind": "GroupingOrMeasure",
-      "name": "car_target"
+      "name": "program_id"
     },
     {
-      "displayName": "Cancer Type",
-      "description": "The cancer type or indication",
+      "displayName": "Program Category",
+      "description": "Category for color grouping and legend",
       "kind": "GroupingOrMeasure",
-      "name": "cancer_type"
+      "name": "program_category"
     },
     {
       "displayName": "Start Date",
@@ -35,10 +35,10 @@
     {
       "conditions": [
         {
-          "car_target": {
+          "program_id": {
             "max": 1
           },
-          "cancer_type": {
+          "program_category": {
             "max": 1
           },
           "start_date": {
@@ -59,12 +59,12 @@
               "select": [
                 {
                   "for": {
-                    "in": "car_target"
+                    "in": "program_id"
                   }
                 },
                 {
                   "for": {
-                    "in": "cancer_type"
+                    "in": "program_category"
                   }
                 },
                 {

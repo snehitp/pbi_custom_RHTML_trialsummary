@@ -7,8 +7,8 @@ An interactive Power BI custom visual that renders a **swimlane / Gantt-style ti
 ## Features
 
 - **Swimlane bars** from Start Date to End Date on a date-scaled X-axis
-- **Y-axis labels** formatted as `CAR Target (Cancer Type)` from two input fields
-- **Auto-colored by category** — unique values of the first field are assigned distinct colors from a 20-color palette
+- **Y-axis labels** from the Program Identifier field
+- **Auto-colored by category** — unique values of the Program Category field are assigned distinct colors from a 20-color palette
 - **Solid / projected split** — bars are solid up to today's date and semi-transparent (40% opacity) for the projected future portion
 - **"Today" reference line** — red dashed vertical line with date annotation
 - **Hover tooltips** — show start/end dates plus any additional fields dragged into the Mouse Over well
@@ -19,13 +19,13 @@ An interactive Power BI custom visual that renders a **swimlane / Gantt-style ti
 
 | Well | Required | Max Fields | Description |
 |------|----------|------------|-------------|
-| **CAR Target** | Yes | 1 | Category for color grouping and label prefix |
-| **Cancer Type** | Yes | 1 | Sub-category for label suffix (shown in parentheses) |
+| **Program Identifier** | Yes | 1 | Y-axis label for each bar |
+| **Program Category** | Yes | 1 | Color grouping and legend |
 | **Start Date** | Yes | 1 | Date field — where the bar begins on the X-axis |
 | **End Date** | No | 1 | Date field — where the bar ends. Defaults to Start Date + 4 years if not provided |
 | **Mouse Over** | No | Unlimited | Any additional fields shown in the hover tooltip |
 
-The visual renders nothing until CAR Target, Cancer Type, and Start Date are all populated.
+The visual renders nothing until Program Identifier, Program Category, and Start Date are all populated.
 
 ## Quick Start
 
@@ -65,7 +65,7 @@ The reference screenshot (`sample_data/stanford_iit_timeline.png`) of a Stanford
 
 ### v1: Initial Implementation
 
-**`capabilities.json`** was rewritten with 5 data roles (CAR Target, Cancer Type, Start Date, End Date, Mouse Over) mapped to a single `scriptResult` table input. **`script.r`** was rewritten to build a plotly Gantt chart using `type = "scatter", mode = "lines"` with thick line widths to form horizontal bars.
+**`capabilities.json`** was rewritten with 5 data roles (Program Identifier, Program Category, Start Date, End Date, Mouse Over) mapped to a single `scriptResult` table input. **`script.r`** was rewritten to build a plotly Gantt chart using `type = "scatter", mode = "lines"` with thick line widths to form horizontal bars.
 
 **Bug: Fields could not be dragged into the visual.** The data roles used `"kind": "Grouping"` which rejected fields typed as measures in the data model, and `"min": 1` conditions on all 4 required roles created a validation deadlock — Power BI couldn't satisfy all minimums simultaneously during incremental field adds.
 
@@ -73,15 +73,15 @@ The reference screenshot (`sample_data/stanford_iit_timeline.png`) of a Stanford
 
 ### v2: Removing Hardcoded Data
 
-**Bug: The visual rendered a full chart even with only one field populated.** The R script contained a large hardcoded sample dataset that it fell back to whenever not all data roles were detected. With only CAR Target populated, the other roles weren't found, so the sample data rendered.
+**Bug: The visual rendered a full chart even with only one field populated.** The R script contained a large hardcoded sample dataset that it fell back to whenever not all data roles were detected. With only the first field populated, the other roles weren't found, so the sample data rendered.
 
 **Fix:** Removed all hardcoded sample data. The script now outputs a blank placeholder with an instructional message when required fields are missing, and exits early with `quit()`.
 
 ### v3: Making It General-Purpose
 
-**Bug: The color palette was hardcoded to specific CAR target names** (CD19, CD22, GD2, etc.) using string-matching regex. The chart title was also hardcoded to "Stanford Investigator-Initiated CAR-T Trials".
+**Bug: The color palette was hardcoded to specific target names** using string-matching regex. The chart title was also hardcoded.
 
-**Fix:** Replaced the string-matching color function with a generic auto-assignment palette (plotly's D3 category20 colors). Colors are assigned in order of first appearance to each unique value of the first field. Removed the hardcoded title.
+**Fix:** Replaced the string-matching color function with a generic auto-assignment palette (plotly's D3 category20 colors). Colors are assigned in order of first appearance to each unique value of the Program Category field. Removed the hardcoded title.
 
 ### v4: Fixing Hover and Broken Bars
 
@@ -126,7 +126,7 @@ The reference screenshot (`sample_data/stanford_iit_timeline.png`) of a Stanford
 Power BI Data Model
     ↓  (fields dragged into data role wells)
 R Engine (script.r)
-    ↓  builds plotly chart from car_target, cancer_type, start_date, end_date, mouseover
+    ↓  builds plotly chart from program_id, program_category, start_date, end_date, mouseover
     ↓  saves as out.html
 flatten_HTML.r
     ↓  embeds JS/CSS inline, swaps plotly.js for CDN reference
