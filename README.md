@@ -11,6 +11,7 @@ An interactive Power BI custom visual that renders a **swimlane / Gantt-style ti
 - **Auto-colored by category** — unique values of the Program Category field are assigned distinct colors from a 20-color palette
 - **Solid / projected split** — bars are solid up to today's date and semi-transparent (40% opacity) for the projected future portion
 - **"Today" reference line** — red dashed vertical line with date annotation
+- **Milestone callout annotations** — optional date-labeled markers on bars, shown as colored label boxes with stems
 - **Hover tooltips** — show start/end dates plus any additional fields dragged into the Mouse Over well
 - **Fully interactive** — zoom, pan, and hover via plotly.js
 - **General-purpose** — no hardcoded data; works with any dataset
@@ -24,6 +25,8 @@ An interactive Power BI custom visual that renders a **swimlane / Gantt-style ti
 | **Start Date** | Yes | 1 | Date field — where the bar begins on the X-axis |
 | **End Date** | No | 1 | Date field — where the bar ends. Defaults to Start Date + 4 years if not provided |
 | **Mouse Over** | No | Unlimited | Any additional fields shown in the hover tooltip |
+| **Milestone** | No | 1 | Milestone label text (requires Milestone Time) |
+| **Milestone Time** | No | 1 | Date when each milestone occurred (requires Milestone) |
 
 The visual renders nothing until Program Identifier, Program Category, and Start Date are all populated.
 

@@ -29,6 +29,18 @@
       "description": "Additional attributes shown on hover (optional, accepts multiple fields)",
       "kind": "GroupingOrMeasure",
       "name": "mouseover"
+    },
+    {
+      "displayName": "Milestone",
+      "description": "Milestone label text (optional, paired with Milestone Time)",
+      "kind": "GroupingOrMeasure",
+      "name": "milestone"
+    },
+    {
+      "displayName": "Milestone Time",
+      "description": "Date when the milestone occurred (optional, paired with Milestone)",
+      "kind": "GroupingOrMeasure",
+      "name": "milestone_time"
     }
   ],
   "dataViewMappings": [
@@ -48,6 +60,14 @@
             "max": 1
           },
           "mouseover": {
+            "min": 0
+          },
+          "milestone": {
+            "max": 1,
+            "min": 0
+          },
+          "milestone_time": {
+            "max": 1,
             "min": 0
           }
         }
@@ -80,6 +100,16 @@
                 {
                   "for": {
                     "in": "mouseover"
+                  }
+                },
+                {
+                  "for": {
+                    "in": "milestone"
+                  }
+                },
+                {
+                  "for": {
+                    "in": "milestone_time"
                   }
                 }
               ],

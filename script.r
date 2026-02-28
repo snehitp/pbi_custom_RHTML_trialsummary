@@ -8,6 +8,8 @@
 #   start_date       (required, 1 field)  — Bar start date
 #   end_date         (optional, 1 field)  — Bar end date (defaults to start + 4 years)
 #   mouseover        (optional, 0+ fields) — Extra attributes for hover tooltip
+#   milestone        (optional, 1 field)  — Milestone label (paired with milestone_time)
+#   milestone_time   (optional, 1 field)  — Milestone date (paired with milestone)
 #
 # Y-AXIS LABELS:  [program_id]
 # X-AXIS:         Timeline, auto-ranged from data
@@ -27,7 +29,8 @@ libraryRequireInstall("plotly")
 # --- Data Handling ---
 # All data comes from PBI data roles. No hardcoded sample data.
 # Required: program_id, program_category, start_date
-# Optional: end_date (defaults to start_date + 4 years), mouseover
+# Optional: end_date (defaults to start_date + 4 years), mouseover,
+#           milestone + milestone_time (both needed for callout annotations)
 
 has_data <- (exists("program_id")       && is.data.frame(program_id)       && ncol(program_id)       >= 1 &&
              exists("program_category") && is.data.frame(program_category) && ncol(program_category) >= 1 &&
@@ -72,10 +75,25 @@ if (exists("mouseover") && is.data.frame(mouseover) && ncol(mouseover) > 0) {
   mouseover_df <- mouseover
 }
 
+# Milestones: optional paired fields (both must be present to render)
+has_milestones <- (exists("milestone")      && is.data.frame(milestone)      && ncol(milestone)      >= 1 &&
+                   exists("milestone_time") && is.data.frame(milestone_time) && ncol(milestone_time) >= 1)
+
+milestone_df <- NULL
+if (has_milestones) {
+  milestone_df <- data.frame(
+    label = as.character(milestone[[1]]),
+    date  = as.Date(milestone_time[[1]]),
+    program_id = df$program_id,
+    stringsAsFactors = FALSE
+  )
+}
+
 # --- Remove rows with NA start dates ---
 valid <- !is.na(df$start_date)
 df <- df[valid, ]
 if (!is.null(mouseover_df)) mouseover_df <- mouseover_df[valid, , drop = FALSE]
+if (!is.null(milestone_df)) milestone_df <- milestone_df[valid, ]
 
 # Swap dates if end < start
 swap <- df$end_date < df$start_date
@@ -85,12 +103,31 @@ if (any(swap)) {
   df$end_date[swap] <- tmp
 }
 
+# --- Deduplicate when milestones cause repeated program rows ---
+if (!is.null(milestone_df)) {
+  # Remove milestones with NA label or date
+  milestone_df <- milestone_df[!is.na(milestone_df$label) & milestone_df$label != "" &
+                                !is.na(milestone_df$date), ]
+
+  # Keep one row per program for bar rendering
+  dup_idx <- !duplicated(df$program_id)
+  df <- df[dup_idx, ]
+  if (!is.null(mouseover_df)) mouseover_df <- mouseover_df[dup_idx, , drop = FALSE]
+}
+
 # --- Y-axis labels: program_id only ---
 df$label <- df$program_id
 
 # De-duplicate identical labels
 if (anyDuplicated(df$label)) {
   df$label <- make.unique(df$label, sep = " #")
+}
+
+# Map milestones to (possibly de-duplicated) y-axis labels
+if (!is.null(milestone_df) && nrow(milestone_df) > 0) {
+  id_to_label <- setNames(df$label, df$program_id)
+  milestone_df$y_label <- id_to_label[milestone_df$program_id]
+  milestone_df <- milestone_df[!is.na(milestone_df$y_label), ]
 }
 
 # --- Hover text ---
@@ -185,17 +222,83 @@ for (i in seq_len(nrow(df))) {
   }
 }
 
-# --- X-axis range: pad 6 months on each side of the data ---
+# --- Milestone annotations ---
+milestone_annotations <- list()
+
+if (!is.null(milestone_df) && nrow(milestone_df) > 0) {
+  # Per-program counter for alternating above/below with progressive offset
+  ms_counter <- list()
+
+  for (idx in seq_len(nrow(milestone_df))) {
+    ms_label <- milestone_df$label[idx]
+    ms_date  <- milestone_df$date[idx]
+    ms_y     <- milestone_df$y_label[idx]
+    ms_pid   <- milestone_df$program_id[idx]
+
+    # Find the corresponding bar
+    bar_row <- df[df$program_id == ms_pid, ]
+    if (nrow(bar_row) == 0) next
+
+    bar_color <- bar_row$color[1]
+
+    # Clamp milestone date to bar range
+    ms_date <- max(ms_date, bar_row$start_date[1])
+    ms_date <- min(ms_date, bar_row$end_date[1])
+
+    # Progressive alternating offset: -40, +40, -70, +70, -100, +100, ...
+    if (is.null(ms_counter[[ms_pid]])) ms_counter[[ms_pid]] <- 0L
+    ms_counter[[ms_pid]] <- ms_counter[[ms_pid]] + 1L
+    counter <- ms_counter[[ms_pid]]
+    tier <- ceiling(counter / 2)
+    direction <- if (counter %% 2 == 1) -1 else 1
+    ay_offset <- direction * (40 + (tier - 1) * 30)
+
+    milestone_annotations[[length(milestone_annotations) + 1]] <- list(
+      x = format(ms_date, "%Y-%m-%d"),
+      y = ms_y,
+      text = ms_label,
+      showarrow = TRUE,
+      arrowhead = 0,
+      arrowwidth = 1.5,
+      arrowcolor = bar_color,
+      ax = 0,
+      ay = ay_offset,
+      bgcolor = bar_color,
+      font = list(color = "#ffffff", size = 9),
+      bordercolor = bar_color,
+      borderwidth = 1,
+      borderpad = 3,
+      opacity = 0.9
+    )
+  }
+}
+
+# --- Build combined annotations list ---
+all_annotations <- list(
+  list(
+    x = format(today, "%Y-%m-%d"), y = 1.02, yref = "paper",
+    text = paste0("Today (", format(today, "%b %Y"), ")"),
+    showarrow = FALSE,
+    font = list(color = "red", size = 10)
+  )
+)
+all_annotations <- c(all_annotations, milestone_annotations)
+
+# --- X-axis range ---
 x_min <- min(df$start_date) - 180
-x_max <- max(df$end_date)   + 180
+# Cap x-axis at 5 years from today; use data range + padding if shorter
+x_max_data <- max(df$end_date) + 180
+x_max_cap  <- today + (365.25 * 5)
+x_max <- min(x_max_data, x_max_cap)
+
+# --- Dynamic chart height: enough room per bar for milestone callouts ---
+px_per_bar <- if (length(milestone_annotations) > 0) 150 else 40
+chart_height <- max(300, nrow(df) * px_per_bar + 80)
 
 # --- Layout ---
 p <- layout(p,
-  title = list(
-    text = "Swimlane Timeline",
-    font = list(size = 16, family = "Arial, sans-serif"),
-    x = 0.5
-  ),
+  height = chart_height,
+  title = FALSE,
   xaxis = list(
     title = list(text = "Year", font = list(size = 12)),
     type = "date",
@@ -217,20 +320,14 @@ p <- layout(p,
       line = list(color = "red", width = 1.5, dash = "dash")
     )
   ),
-  annotations = list(
-    list(
-      x = format(today, "%Y-%m-%d"), y = 1.04, yref = "paper",
-      text = paste0("Today (", format(today, "%b %Y"), ")"),
-      showarrow = FALSE,
-      font = list(color = "red", size = 10)
-    )
-  ),
-  margin = list(l = 300, r = 40, t = 80, b = 60),
+  annotations = all_annotations,
+  margin = list(l = 60, r = 10, t = 20, b = 30),
   legend = list(
-    orientation = "h", y = -0.12, x = 0.5, xanchor = "center",
+    orientation = "h", y = -0.08, x = 0.5, xanchor = "center",
     font = list(size = 10)
   ),
   hovermode = "closest",
+  hoverlabel = list(align = "left"),
   plot_bgcolor  = "#ffffff",
   paper_bgcolor = "#ffffff"
 )
@@ -245,4 +342,13 @@ internalSaveWidget(p, 'out.html')
 
 ################ Reduce paddings ###################
 ReadFullFileReplaceString('out.html', 'out.html', ',"padding":[0-9]*,', ',"padding":0,')
+####################################################
+
+######### Wrap body in scrollable container #########
+ReadFullFileReplaceString('out.html', 'out.html',
+  '<body>',
+  '<body><div style="position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto;">')
+ReadFullFileReplaceString('out.html', 'out.html',
+  '</body>',
+  '</div></body>')
 ####################################################
