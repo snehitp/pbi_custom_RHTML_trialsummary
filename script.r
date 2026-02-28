@@ -379,7 +379,42 @@ p <- layout(p,
   paper_bgcolor = "#ffffff"
 )
 
-p <- config(p, displayModeBar = TRUE, displaylogo = FALSE)
+# Custom modebar button: copy SVG to clipboard
+# (PBI sandbox blocks file downloads, so we copy to clipboard instead)
+copy_svg_btn <- list(
+  name = "copySVG",
+  title = "Copy SVG to clipboard",
+  icon = list(
+    path = "M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z",
+    transform = "matrix(0.83 0 0 0.83 0 0)"
+  ),
+  click = htmlwidgets::JS("function(gd) {
+    Plotly.toImage(gd, {format:'svg', height:gd._fullLayout.height, width:gd._fullLayout.width})
+      .then(function(url) {
+        var svg = decodeURIComponent(url.replace('data:image/svg+xml,',''));
+        var ta = document.createElement('textarea');
+        ta.value = svg;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        var msg = document.createElement('div');
+        msg.textContent = ok ? 'SVG copied to clipboard' : 'Copy failed';
+        msg.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 16px;border-radius:4px;font:13px sans-serif;z-index:99999;opacity:0.95;';
+        document.body.appendChild(msg);
+        setTimeout(function(){document.body.removeChild(msg);}, 2000);
+      });
+  }")
+)
+
+p <- config(p,
+  displayModeBar = TRUE,
+  displaylogo = FALSE,
+  modeBarButtonsToAdd = list(copy_svg_btn),
+  toImageButtonOptions = list(format = "svg")
+)
 
 ####################################################
 

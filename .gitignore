@@ -15,5 +15,8 @@ Thumbs.db
 *.swo
 *~
 
+# Claude Code
+.claude/
+
 # Sample data (may contain sensitive datasets)
 sample_data/

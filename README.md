@@ -17,6 +17,7 @@ An interactive Power BI custom visual that renders a **swimlane / Gantt-style ti
 - **Bar hover tooltips** — left-justified tooltips showing program name, category, start/end dates, and any Mouse Over fields
 - **Vertical scrolling** — when the chart exceeds the visual frame, the content is scrollable via an absolute-positioned wrapper div
 - **Dynamic chart height** — 150px per bar when milestones are present, 40px per bar without, ensuring compact layout without milestones and sufficient spacing with them
+- **SVG copy to clipboard** — custom modebar button generates SVG via `Plotly.toImage()` and copies to clipboard (workaround for PBI sandbox blocking file downloads)
 - **Fully interactive** — zoom, pan, and hover via plotly.js
 - **General-purpose** — no hardcoded data; works with any dataset
 
@@ -96,6 +97,8 @@ Browser — Interactive plotly chart with hover, zoom, pan
 **X-axis cap:** The X-axis extends to `min(max_end_date + 180 days, today + 2 years)`. Bars truncated by this cap get a black right-pointing arrow annotation (stalk + arrowhead) with hover text showing the actual end date.
 
 **Scrolling:** The HTML output body is wrapped in an absolute-positioned div (`position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto`) via `ReadFullFileReplaceString` post-processing.
+
+**SVG export:** A custom plotly modebar button (clipboard icon) calls `Plotly.toImage(gd, {format:'svg'})` to generate SVG client-side, then copies the raw SVG markup to clipboard via `document.execCommand('copy')` (the only clipboard API that works inside PBI's sandboxed iframe). A toast notification confirms the copy. This is defined entirely in `script.r` via `htmlwidgets::JS()` — no TypeScript changes needed because R-generated HTML and TypeScript share the same `window` object.
 
 **Layout:** No plot title, tight margins (`l=60, r=10, t=20, b=30`), horizontal legend below the chart. "Today" annotation at `y=1.02, yref="paper"`.
 
@@ -197,6 +200,18 @@ Added vertical scrolling (absolute-positioned wrapper div), X-axis cap (original
 
 Added black right-pointing arrow annotations for bars truncated by the X-axis cap. Added Milestone Tooltip data role for additional hover fields on milestone callout boxes. Milestone annotations use `captureevents = TRUE` with `hovertext` for hover on the callout box itself.
 
+### v8: SVG Export via Clipboard
+
+**Goal:** Allow users to download the chart as SVG from PBI Desktop and Service.
+
+**Problem:** Power BI renders custom visuals inside a sandboxed iframe that lacks the `allow-downloads` permission. Plotly's built-in download button (`toImageButtonOptions`) generates the SVG successfully but the browser's `<a download>` mechanism is blocked — the user sees "Snapshot succeeded" but no file is saved.
+
+**Approaches tried and failed:**
+- **Plotly's built-in download button** (`toImageButtonOptions = list(format = "svg")`) — generates SVG but PBI sandbox blocks the file save dialog in both Desktop and Service.
+- **PBI `IDownloadService` bridge** (Option A) — added `IDownloadService` import to `visual.ts`, exposed a `window.__pbiDownloadSVG` bridge function, added `ExportContent` privilege to `capabilities.json`, and created a custom modebar button in `script.r` that routed SVG through `downloadService.exportVisualsContent()`. Did not work. Fully rolled back.
+
+**Working solution (Option B):** Custom plotly modebar button that copies SVG to clipboard using the legacy `document.execCommand('copy')` API, which is allowed inside PBI's sandbox. Implementation is entirely in `script.r` — no TypeScript or `capabilities.json` changes required. The button uses `Plotly.toImage()` to generate SVG as a data URI, decodes it to raw SVG markup, copies via a hidden textarea, and shows a 2-second toast notification ("SVG copied to clipboard"). Users paste into a text editor and save as `.svg`, or paste directly into vector graphics tools.
+
 ### Known Issues and Lessons Learned
 
 | Issue | Status | Detail |
@@ -209,6 +224,8 @@ Added black right-pointing arrow annotations for bars truncated by the X-axis ca
 | Only 2 endpoints per trace | Resolved | Hover misses the bar body — interpolate points along bar length |
 | HTML div tags in hover text | Resolved | Plotly renders them as literal text — use `hoverlabel.align` instead |
 | Scrolling with `height: 100%` | Resolved | Doesn't work in PBI container — use absolute positioning |
+| PBI sandbox blocks file downloads | Resolved | `<a download>`, `window.open()`, and `navigator.clipboard` are all blocked. Plotly's built-in download button generates SVG but can't save it. Workaround: copy to clipboard via `document.execCommand('copy')`. |
+| PBI `IDownloadService` bridge | Failed | Attempted routing SVG through `visual.ts` → `downloadService.exportVisualsContent()` with `ExportContent` privilege. Did not trigger a download. Rolled back. |
 
 ## Tips
 
