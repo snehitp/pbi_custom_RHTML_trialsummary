@@ -41,6 +41,12 @@
       "description": "Date when the milestone occurred (optional, paired with Milestone)",
       "kind": "GroupingOrMeasure",
       "name": "milestone_time"
+    },
+    {
+      "displayName": "Milestone Tooltip",
+      "description": "Additional attributes shown on milestone hover (optional, accepts multiple fields)",
+      "kind": "GroupingOrMeasure",
+      "name": "milestone_tooltip"
     }
   ],
   "dataViewMappings": [
@@ -68,6 +74,9 @@
           },
           "milestone_time": {
             "max": 1,
+            "min": 0
+          },
+          "milestone_tooltip": {
             "min": 0
           }
         }
@@ -110,6 +119,11 @@
                 {
                   "for": {
                     "in": "milestone_time"
+                  }
+                },
+                {
+                  "for": {
+                    "in": "milestone_tooltip"
                   }
                 }
               ],

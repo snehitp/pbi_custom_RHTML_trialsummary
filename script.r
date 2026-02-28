@@ -10,6 +10,7 @@
 #   mouseover        (optional, 0+ fields) — Extra attributes for hover tooltip
 #   milestone        (optional, 1 field)  — Milestone label (paired with milestone_time)
 #   milestone_time   (optional, 1 field)  — Milestone date (paired with milestone)
+#   milestone_tooltip (optional, 0+ fields) — Extra attributes for milestone hover tooltip
 #
 # Y-AXIS LABELS:  [program_id]
 # X-AXIS:         Timeline, auto-ranged from data
@@ -80,6 +81,7 @@ has_milestones <- (exists("milestone")      && is.data.frame(milestone)      && 
                    exists("milestone_time") && is.data.frame(milestone_time) && ncol(milestone_time) >= 1)
 
 milestone_df <- NULL
+milestone_tooltip_df <- NULL
 if (has_milestones) {
   milestone_df <- data.frame(
     label = as.character(milestone[[1]]),
@@ -87,6 +89,10 @@ if (has_milestones) {
     program_id = df$program_id,
     stringsAsFactors = FALSE
   )
+  # Milestone tooltip: optional extra fields shown on milestone hover
+  if (exists("milestone_tooltip") && is.data.frame(milestone_tooltip) && ncol(milestone_tooltip) > 0) {
+    milestone_tooltip_df <- milestone_tooltip
+  }
 }
 
 # --- Remove rows with NA start dates ---
@@ -94,6 +100,7 @@ valid <- !is.na(df$start_date)
 df <- df[valid, ]
 if (!is.null(mouseover_df)) mouseover_df <- mouseover_df[valid, , drop = FALSE]
 if (!is.null(milestone_df)) milestone_df <- milestone_df[valid, ]
+if (!is.null(milestone_tooltip_df)) milestone_tooltip_df <- milestone_tooltip_df[valid, , drop = FALSE]
 
 # Swap dates if end < start
 swap <- df$end_date < df$start_date
@@ -106,8 +113,10 @@ if (any(swap)) {
 # --- Deduplicate when milestones cause repeated program rows ---
 if (!is.null(milestone_df)) {
   # Remove milestones with NA label or date
-  milestone_df <- milestone_df[!is.na(milestone_df$label) & milestone_df$label != "" &
-                                !is.na(milestone_df$date), ]
+  ms_valid <- !is.na(milestone_df$label) & milestone_df$label != "" &
+              !is.na(milestone_df$date)
+  milestone_df <- milestone_df[ms_valid, ]
+  if (!is.null(milestone_tooltip_df)) milestone_tooltip_df <- milestone_tooltip_df[ms_valid, , drop = FALSE]
 
   # Keep one row per program for bar rendering
   dup_idx <- !duplicated(df$program_id)
@@ -245,6 +254,16 @@ if (!is.null(milestone_df) && nrow(milestone_df) > 0) {
     ms_date <- max(ms_date, bar_row$start_date[1])
     ms_date <- min(ms_date, bar_row$end_date[1])
 
+    # Build milestone hover text
+    ms_htxt <- paste0("<b>", ms_label, "</b><br>Date: ", format(ms_date, "%b %Y"))
+    if (!is.null(milestone_tooltip_df)) {
+      for (cn in names(milestone_tooltip_df)) {
+        val <- as.character(milestone_tooltip_df[[cn]][idx])
+        if (is.na(val) || val == "NA") val <- "N/A"
+        ms_htxt <- paste0(ms_htxt, "<br><b>", cn, ":</b> ", val)
+      }
+    }
+
     # Progressive alternating offset: -40, +40, -70, +70, -100, +100, ...
     if (is.null(ms_counter[[ms_pid]])) ms_counter[[ms_pid]] <- 0L
     ms_counter[[ms_pid]] <- ms_counter[[ms_pid]] + 1L
@@ -268,7 +287,9 @@ if (!is.null(milestone_df) && nrow(milestone_df) > 0) {
       bordercolor = bar_color,
       borderwidth = 1,
       borderpad = 3,
-      opacity = 0.9
+      opacity = 0.9,
+      captureevents = TRUE,
+      hovertext = ms_htxt
     )
   }
 }
@@ -286,10 +307,36 @@ all_annotations <- c(all_annotations, milestone_annotations)
 
 # --- X-axis range ---
 x_min <- min(df$start_date) - 180
-# Cap x-axis at 5 years from today; use data range + padding if shorter
+# Cap x-axis at 2 years from today; use data range + padding if shorter
 x_max_data <- max(df$end_date) + 180
-x_max_cap  <- today + (365.25 * 5)
+x_max_cap  <- today + (365.25 * 2)
 x_max <- min(x_max_data, x_max_cap)
+
+# --- Truncation arrows for bars that extend beyond the x-axis cap ---
+truncated_idx <- which(df$end_date > x_max_cap)
+truncation_annotations <- list()
+for (ti in truncated_idx) {
+  # Arrow stalk starts 60 days left of cap, arrowhead points at cap minus small inset
+  arrow_tip  <- x_max_cap - 15
+  arrow_tail <- x_max_cap - 75
+  truncation_annotations[[length(truncation_annotations) + 1]] <- list(
+    x = format(arrow_tip, "%Y-%m-%d"),
+    y = df$label[ti],
+    ax = format(arrow_tail, "%Y-%m-%d"),
+    ay = df$label[ti],
+    axref = "x", ayref = "y",
+    showarrow = TRUE,
+    arrowhead = 2,
+    arrowsize = 1.5,
+    arrowwidth = 2,
+    arrowcolor = "#000000",
+    text = paste0("→ ", format(df$end_date[ti], "%b %Y")),
+    font = list(size = 1, color = "rgba(0,0,0,0)"),
+    hovertext = paste0("Continues to ", format(df$end_date[ti], "%b %Y"))
+  )
+}
+
+all_annotations <- c(all_annotations, truncation_annotations)
 
 # --- Dynamic chart height: enough room per bar for milestone callouts ---
 px_per_bar <- if (length(milestone_annotations) > 0) 150 else 40
