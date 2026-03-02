@@ -57,19 +57,29 @@ if (!has_data) {
 tryCatch({
 
 # ---- Build dataframe from PBI data roles ----
-sdate <- as.Date(start_date[[1]])
+# Align row counts across data roles (PBI Service may send mismatched counts
+# when "show items with no data" is enabled)
+n_rows <- min(nrow(program_id), nrow(program_category), nrow(start_date))
+if (exists("end_date") && is.data.frame(end_date) && ncol(end_date) >= 1) {
+  n_rows <- min(n_rows, nrow(end_date))
+}
+
+sdate <- as.Date(start_date[[1]][1:n_rows])
 
 # Use end_date if provided, otherwise default to start_date + 4 years
 if (exists("end_date") && is.data.frame(end_date) && ncol(end_date) >= 1) {
-  edate <- as.Date(end_date[[1]])
+  edate <- as.Date(end_date[[1]][1:n_rows])
   edate[is.na(edate)] <- sdate[is.na(edate)] + (365.25 * 4)
 } else {
   edate <- sdate + (365.25 * 4)
 }
 
+# Helper: strip stray backslashes from PBI text fields
+strip_bs <- function(x) gsub("\\\\", "", x)
+
 df <- data.frame(
-  program_id       = as.character(program_id[[1]]),
-  program_category = as.character(program_category[[1]]),
+  program_id       = strip_bs(as.character(program_id[[1]][1:n_rows])),
+  program_category = strip_bs(as.character(program_category[[1]][1:n_rows])),
   start_date       = sdate,
   end_date         = edate,
   stringsAsFactors = FALSE
@@ -78,7 +88,10 @@ df <- data.frame(
 # Mouseover: optional extra tooltip fields
 mouseover_df <- NULL
 if (exists("mouseover") && is.data.frame(mouseover) && ncol(mouseover) > 0) {
-  mouseover_df <- mouseover
+  mouseover_df <- mouseover[1:n_rows, , drop = FALSE]
+  for (cn in names(mouseover_df)) {
+    if (is.character(mouseover_df[[cn]])) mouseover_df[[cn]] <- strip_bs(mouseover_df[[cn]])
+  }
 }
 
 # Milestones: optional paired fields (both must be present to render)
@@ -88,15 +101,19 @@ has_milestones <- (exists("milestone")      && is.data.frame(milestone)      && 
 milestone_df <- NULL
 milestone_tooltip_df <- NULL
 if (has_milestones) {
+  ms_n <- min(n_rows, nrow(milestone), nrow(milestone_time))
   milestone_df <- data.frame(
-    label = as.character(milestone[[1]]),
-    date  = as.Date(milestone_time[[1]]),
-    program_id = df$program_id,
+    label = strip_bs(as.character(milestone[[1]][1:ms_n])),
+    date  = as.Date(milestone_time[[1]][1:ms_n]),
+    program_id = df$program_id[1:ms_n],
     stringsAsFactors = FALSE
   )
   # Milestone tooltip: optional extra fields shown on milestone hover
   if (exists("milestone_tooltip") && is.data.frame(milestone_tooltip) && ncol(milestone_tooltip) > 0) {
-    milestone_tooltip_df <- milestone_tooltip
+    milestone_tooltip_df <- milestone_tooltip[1:ms_n, , drop = FALSE]
+    for (cn in names(milestone_tooltip_df)) {
+      if (is.character(milestone_tooltip_df[[cn]])) milestone_tooltip_df[[cn]] <- strip_bs(milestone_tooltip_df[[cn]])
+    }
   }
 }
 
@@ -236,6 +253,37 @@ for (i in seq_len(nrow(df))) {
   }
 }
 
+# --- Mouseover text labels on bars ---
+bar_label_annotations <- list()
+if (!is.null(mouseover_df)) {
+  for (i in seq_len(nrow(df))) {
+    # Build label from mouseover field values (no column names)
+    parts <- character(0)
+    for (cn in names(mouseover_df)) {
+      val <- as.character(mouseover_df[[cn]][i])
+      if (!is.na(val) && val != "NA" && val != "") {
+        parts <- c(parts, val)
+      }
+    }
+    if (length(parts) == 0) next
+    bar_text <- paste(parts, collapse = " | ")
+
+    # Position at midpoint of bar (clamped to 2-year cap)
+    vis_end  <- min(df$end_date[i], today + (365.25 * 2))
+    mid_date <- df$start_date[i] + (vis_end - df$start_date[i]) / 2
+
+    bar_label_annotations[[length(bar_label_annotations) + 1]] <- list(
+      x = format(mid_date, "%Y-%m-%d"),
+      y = df$label[i],
+      text = paste0("<i>", bar_text, "</i>"),
+      showarrow = FALSE,
+      font = list(color = "#000000", size = 11),
+      xanchor = "center",
+      yanchor = "middle"
+    )
+  }
+}
+
 # --- Milestone annotations ---
 milestone_annotations <- list()
 
@@ -288,7 +336,7 @@ if (!is.null(milestone_df) && nrow(milestone_df) > 0) {
       ax = 0,
       ay = ay_offset,
       bgcolor = bar_color,
-      font = list(color = "#ffffff", size = 9),
+      font = list(color = "#ffffff", size = 11),
       bordercolor = bar_color,
       borderwidth = 1,
       borderpad = 3,
@@ -305,10 +353,10 @@ all_annotations <- list(
     x = format(today, "%Y-%m-%d"), y = 1.02, yref = "paper",
     text = paste0("Today (", format(today, "%b %Y"), ")"),
     showarrow = FALSE,
-    font = list(color = "red", size = 10)
+    font = list(color = "red", size = 12)
   )
 )
-all_annotations <- c(all_annotations, milestone_annotations)
+all_annotations <- c(all_annotations, milestone_annotations, bar_label_annotations)
 
 # --- X-axis range ---
 x_min <- min(df$start_date) - 180
@@ -344,15 +392,48 @@ for (ti in truncated_idx) {
 all_annotations <- c(all_annotations, truncation_annotations)
 
 # --- Dynamic chart height: enough room per bar for milestone callouts ---
-px_per_bar <- if (length(milestone_annotations) > 0) 150 else 40
+has_ms <- length(milestone_annotations) > 0
+px_per_bar <- if (has_ms) 150 else 40
 chart_height <- max(300, nrow(df) * px_per_bar + 80)
+chart_height_no_ms <- max(300, nrow(df) * 40 + 80)
+
+# --- Milestone toggle button (only when milestones exist) ---
+toggle_menus <- NULL
+if (has_ms) {
+  # Milestone annotations are at JS indices 1..length(milestone_annotations)
+  # (index 0 is the "Today" annotation)
+  args_off <- list()
+  args_on  <- list()
+  for (j in seq_along(milestone_annotations)) {
+    args_off[[paste0("annotations[", j, "].visible")]] <- FALSE
+    args_on[[paste0("annotations[", j, "].visible")]]  <- TRUE
+  }
+  args_off[["height"]] <- chart_height_no_ms
+  args_on[["height"]]  <- chart_height
+
+  toggle_menus <- list(
+    list(
+      type = "buttons",
+      direction = "right",
+      x = 0, y = 1.06, xanchor = "left", yanchor = "bottom",
+      pad = list(t = 0, b = 0),
+      font = list(size = 11),
+      buttons = list(
+        list(label = "Milestones On",  method = "relayout", args = list(args_on)),
+        list(label = "Milestones Off", method = "relayout", args = list(args_off))
+      ),
+      active = 0,
+      showactive = TRUE
+    )
+  )
+}
 
 # --- Layout ---
 p <- layout(p,
   height = chart_height,
   title = FALSE,
   xaxis = list(
-    title = list(text = "Year", font = list(size = 12)),
+    title = list(text = "Year", font = list(size = 14)),
     type = "date",
     range = c(format(x_min, "%Y-%m-%d"), format(x_max, "%Y-%m-%d")),
     gridcolor = "#e8e8e8",
@@ -362,7 +443,7 @@ p <- layout(p,
     title = "",
     categoryorder = "array",
     categoryarray = y_order,
-    tickfont = list(size = 10)
+    tickfont = list(size = 12)
   ),
   shapes = list(
     list(
@@ -373,10 +454,11 @@ p <- layout(p,
     )
   ),
   annotations = all_annotations,
-  margin = list(l = 60, r = 10, t = 20, b = 30),
+  updatemenus = toggle_menus,
+  margin = list(l = 60, r = 10, t = if (has_ms) 40 else 20, b = 30),
   legend = list(
     orientation = "h", y = -0.08, x = 0.5, xanchor = "center",
-    font = list(size = 10)
+    font = list(size = 12)
   ),
   hovermode = "closest",
   hoverlabel = list(align = "left"),

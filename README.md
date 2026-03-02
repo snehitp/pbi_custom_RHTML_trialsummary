@@ -14,10 +14,13 @@ An interactive Power BI custom visual that renders a **swimlane / Gantt-style ti
 - **Milestone callout annotations** — optional date-labeled markers on bars, shown as colored label boxes with arrow stems, alternating above/below to avoid overlap
 - **Milestone hover tooltips** — milestone callout boxes show a tooltip on hover (via plotly `captureevents`) with the milestone label, date, and any additional Milestone Tooltip fields
 - **Truncation arrows** — when bars extend beyond the X-axis cap (2 years from today), a black right-pointing arrow with stalk indicates continuation, with hover text showing the actual end date
+- **Bar text labels** — Mouse Over field values displayed as black italic text directly on each swimlane bar (pipe-delimited, values only)
+- **Milestone toggle** — plotly updatemenus button to turn milestones on/off; hides all milestone annotations and adjusts chart height dynamically
 - **Bar hover tooltips** — left-justified tooltips showing program name, category, start/end dates, and any Mouse Over fields
 - **Vertical scrolling** — when the chart exceeds the visual frame, the content is scrollable via an absolute-positioned wrapper div
 - **Dynamic chart height** — 150px per bar when milestones are present, 40px per bar without, ensuring compact layout without milestones and sufficient spacing with them
 - **SVG copy to clipboard** — custom modebar button generates SVG via `Plotly.toImage()` and copies to clipboard (workaround for PBI sandbox blocking file downloads)
+- **PBI Service compatibility** — row count alignment across data roles handles "show items with no data" mismatches; backslash stripping cleans PBI text field artifacts
 - **Graceful error handling** — `tryCatch` wraps the main rendering logic; errors display inside the visual (red text) instead of crashing with PBI's generic error dialog
 - **Fully interactive** — zoom, pan, and hover via plotly.js
 - **General-purpose** — no hardcoded data; works with any dataset
@@ -103,7 +106,15 @@ Browser — Interactive plotly chart with hover, zoom, pan
 
 **SVG export:** A custom plotly modebar button (clipboard icon, positioned left-most in the toolbar via `modeBarButtons`) calls `Plotly.toImage(gd, {format:'svg'})` to generate SVG client-side, then copies the raw SVG markup to clipboard via `document.execCommand('copy')` (the only clipboard API that works inside PBI's sandboxed iframe). A 3-second toast notification instructs the user to paste into Notepad and save as `.svg`. Defined entirely in `script.r` via `htmlwidgets::JS()` — no TypeScript changes needed. Overriding the default camera button's click handler was attempted (monkey-patching `Plotly.downloadImage`, DOM event interception) but plotly's internal pipeline could not be reliably intercepted inside PBI's HTML injection context, so a separate button is used instead.
 
-**Layout:** No plot title, tight margins (`l=60, r=10, t=20, b=30`), horizontal legend below the chart. "Today" annotation at `y=1.02, yref="paper"`.
+**Bar text labels:** Mouse Over field values are rendered as plotly layout annotations positioned at the midpoint of each bar (clamped to the visible x-axis range). Values are pipe-delimited (`val1 | val2`) with no column names. Font is black, italic, size 11.
+
+**Milestone toggle:** When milestones are present, a plotly `updatemenus` button pair ("Milestones On" / "Milestones Off") appears above the chart. The off-state sets `annotations[i].visible = FALSE` for every milestone annotation (indices 1..N, since index 0 is the "Today" annotation) and reduces the chart height to 40px/bar. The on-state restores visibility and 150px/bar height.
+
+**Row count alignment:** PBI Service can send different row counts across data roles when "show items with no data" is enabled. The script computes `n_rows = min(nrow(...))` across all provided data roles and truncates each to a common length before joining.
+
+**Backslash stripping:** PBI sometimes wraps text field values in backslash characters. A `strip_bs()` helper (`gsub("\\\\", "", x)`) is applied to all displayed text: program IDs, categories, mouseover values, milestone labels, and milestone tooltip values.
+
+**Layout:** No plot title, tight margins (`l=60, r=10, t=20, b=30`; `t=40` when milestone toggle is present), horizontal legend below the chart. "Today" annotation at `y=1.02, yref="paper"`.
 
 ### Files to Modify vs. Files to Leave Alone
 
@@ -219,6 +230,18 @@ Wrapped the entire main rendering block in `tryCatch`. Extracted a reusable `ren
 
 **Working solution (Option B):** Custom plotly modebar button (clipboard icon) that copies SVG to clipboard using the legacy `document.execCommand('copy')` API, which is allowed inside PBI's sandbox. Implementation is entirely in `script.r` — no TypeScript or `capabilities.json` changes required. The button uses `Plotly.toImage()` to generate SVG as a data URI, decodes it to raw SVG markup, copies via a hidden textarea, and shows a 3-second toast notification ("SVG copied! Paste into Notepad and save as .svg"). The button is positioned left-most in the modebar via `modeBarButtons` (which defines the full button layout) rather than `modeBarButtonsToAdd` (which appends to the right). Attempts to override the default camera icon's behavior — via `Plotly.downloadImage` monkey-patching and DOM click interception — failed because PBI's HTML injection pipeline prevents reliable script timing.
 
+### v10: Bar Labels, Milestone Toggle, and PBI Service Fixes
+
+Added Mouse Over field values as black italic text labels directly on each swimlane bar (pipe-delimited, values only — no column names). Increased font sizes across all plot elements: milestone callouts 9→11, bar labels 11, Today annotation 10→12, x-axis title 12→14, y-axis ticks 10→12, legend 10→12.
+
+Added a milestone toggle button ("Milestones On" / "Milestones Off") via plotly `updatemenus`. When toggled off, all milestone annotations are hidden and the chart height reduces to the compact no-milestones layout (40px/bar).
+
+**Bug:** PBI Service throws "arguments imply differing number of rows: 30, 31" when "show items with no data" is enabled — PBI Service sends mismatched row counts across data roles (PBI Desktop does not).
+**Fix:** Compute `n_rows = min(nrow(...))` across all provided data roles and truncate to a common length before data frame construction.
+
+**Bug:** Legend entries and tooltip text display stray backslash characters (e.g., `\Lori Muffly, MD\`).
+**Fix:** Added `strip_bs()` helper applying `gsub("\\\\", "", x)` to all displayed text fields.
+
 ### Known Issues and Lessons Learned
 
 | Issue | Status | Detail |
@@ -234,6 +257,8 @@ Wrapped the entire main rendering block in `tryCatch`. Extracted a reusable `ren
 | PBI sandbox blocks file downloads | Resolved | `<a download>`, `window.open()`, and `navigator.clipboard` are all blocked. Plotly's built-in download button generates SVG but can't save it. Workaround: copy to clipboard via `document.execCommand('copy')`. |
 | PBI `IDownloadService` bridge | Failed | Attempted routing SVG through `visual.ts` → `downloadService.exportVisualsContent()` with `ExportContent` privilege. Did not trigger a download. Rolled back. |
 | Overriding plotly camera button click | Failed | Attempted monkey-patching `Plotly.downloadImage` via `htmlwidgets::onRender()` and DOM click interception via injected `<script>`. Both failed — PBI's HTML injection pipeline (`htmlInjectionUtility.ts`) causes timing issues where `DOMContentLoaded` has already fired and `onRender` patches don't survive plotly's internal call chain. Used a separate custom button instead. |
+| PBI Service row count mismatch | Resolved | "Show items with no data" causes PBI Service to send different row counts per data role — truncate all to `min(nrow(...))` |
+| Backslash characters in PBI text fields | Resolved | PBI wraps some text values in backslashes — strip with `gsub("\\\\", "", x)` |
 
 ## Tips
 
