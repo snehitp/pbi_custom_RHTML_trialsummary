@@ -37,19 +37,24 @@ has_data <- (exists("program_id")       && is.data.frame(program_id)       && nc
              exists("program_category") && is.data.frame(program_category) && ncol(program_category) >= 1 &&
              exists("start_date")       && is.data.frame(start_date)       && ncol(start_date)       >= 1)
 
-if (!has_data) {
-  # Not enough fields populated — output a blank placeholder
+# Helper: render an error/info message inside the visual instead of crashing
+render_message <- function(msg, color = "#888888") {
   p <- plotly_empty() %>%
     layout(
-      title = list(
-        text = "Drag Program Identifier, Program Category, and Start Date into the field wells",
-        font = list(size = 14, color = "#888888")
-      )
+      title = list(text = msg, font = list(size = 14, color = color)),
+      margin = list(l = 20, r = 20, t = 60, b = 20)
     )
   internalSaveWidget(p, 'out.html')
   ReadFullFileReplaceString('out.html', 'out.html', ',"padding":[0-9]*,', ',"padding":0,')
+}
+
+if (!has_data) {
+  render_message("Drag Program Identifier, Program Category, and Start Date into the field wells")
   quit()
 }
+
+# Wrap main rendering in tryCatch so errors display inside the visual
+tryCatch({
 
 # ---- Build dataframe from PBI data roles ----
 sdate <- as.Date(start_date[[1]])
@@ -439,3 +444,7 @@ ReadFullFileReplaceString('out.html', 'out.html',
   '</body>',
   '</div></body>')
 ####################################################
+
+}, error = function(e) {
+  render_message(paste0("Error: ", conditionMessage(e)), color = "#cc0000")
+})

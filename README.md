@@ -18,6 +18,7 @@ An interactive Power BI custom visual that renders a **swimlane / Gantt-style ti
 - **Vertical scrolling** — when the chart exceeds the visual frame, the content is scrollable via an absolute-positioned wrapper div
 - **Dynamic chart height** — 150px per bar when milestones are present, 40px per bar without, ensuring compact layout without milestones and sufficient spacing with them
 - **SVG copy to clipboard** — custom modebar button generates SVG via `Plotly.toImage()` and copies to clipboard (workaround for PBI sandbox blocking file downloads)
+- **Graceful error handling** — `tryCatch` wraps the main rendering logic; errors display inside the visual (red text) instead of crashing with PBI's generic error dialog
 - **Fully interactive** — zoom, pan, and hover via plotly.js
 - **General-purpose** — no hardcoded data; works with any dataset
 
@@ -85,6 +86,8 @@ Browser — Interactive plotly chart with hover, zoom, pan
 ```
 
 ### Key Implementation Details
+
+**Error handling:** A `render_message()` helper renders text inside the visual via `plotly_empty()`. The missing-fields placeholder uses it (grey text), and a `tryCatch` wrapping the entire main code block uses it to display R errors in red. This prevents PBI's generic crash dialog and gives users actionable error messages.
 
 **Bar rendering:** Each bar is a plotly scatter trace (`type = "scatter", mode = "lines"`) with `line.width = 20`. Bars are split at today's date into a solid portion (past) and a 40% opacity portion (projected future). Each segment is interpolated with ~1 point per month via `make_date_seq()` to ensure hover detection works along the full bar length (not just at endpoints).
 
@@ -199,6 +202,10 @@ Added vertical scrolling (absolute-positioned wrapper div), X-axis cap (original
 ### v7: Truncation Arrows and Milestone Tooltips
 
 Added black right-pointing arrow annotations for bars truncated by the X-axis cap. Added Milestone Tooltip data role for additional hover fields on milestone callout boxes. Milestone annotations use `captureevents = TRUE` with `hovertext` for hover on the callout box itself.
+
+### v9: Graceful Error Handling
+
+Wrapped the entire main rendering block in `tryCatch`. Extracted a reusable `render_message()` helper that renders text inside the visual via `plotly_empty()`. On error, the R error message is displayed in red inside the visual frame instead of triggering PBI's generic crash dialog. The existing missing-fields placeholder was refactored to use the same helper.
 
 ### v8: SVG Export via Clipboard
 
