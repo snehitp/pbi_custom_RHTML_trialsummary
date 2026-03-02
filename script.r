@@ -401,10 +401,10 @@ copy_svg_btn <- list(
         var ok = document.execCommand('copy');
         document.body.removeChild(ta);
         var msg = document.createElement('div');
-        msg.textContent = ok ? 'SVG copied to clipboard' : 'Copy failed';
+        msg.textContent = ok ? 'SVG copied! Paste into Notepad and save as .svg' : 'Copy failed';
         msg.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 16px;border-radius:4px;font:13px sans-serif;z-index:99999;opacity:0.95;';
         document.body.appendChild(msg);
-        setTimeout(function(){document.body.removeChild(msg);}, 2000);
+        setTimeout(function(){document.body.removeChild(msg);}, 3000);
       });
   }")
 )
@@ -412,8 +412,13 @@ copy_svg_btn <- list(
 p <- config(p,
   displayModeBar = TRUE,
   displaylogo = FALSE,
-  modeBarButtonsToAdd = list(copy_svg_btn),
-  toImageButtonOptions = list(format = "svg")
+  modeBarButtons = list(
+    list(copy_svg_btn),
+    list("toImage"),
+    list("zoom2d", "pan2d", "select2d", "lasso2d"),
+    list("zoomIn2d", "zoomOut2d", "autoScale2d", "resetScale2d"),
+    list("hoverClosestCartesian", "hoverCompareCartesian")
+  )
 )
 
 ####################################################

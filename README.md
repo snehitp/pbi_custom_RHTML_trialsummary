@@ -98,7 +98,7 @@ Browser — Interactive plotly chart with hover, zoom, pan
 
 **Scrolling:** The HTML output body is wrapped in an absolute-positioned div (`position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto`) via `ReadFullFileReplaceString` post-processing.
 
-**SVG export:** A custom plotly modebar button (clipboard icon) calls `Plotly.toImage(gd, {format:'svg'})` to generate SVG client-side, then copies the raw SVG markup to clipboard via `document.execCommand('copy')` (the only clipboard API that works inside PBI's sandboxed iframe). A toast notification confirms the copy. This is defined entirely in `script.r` via `htmlwidgets::JS()` — no TypeScript changes needed because R-generated HTML and TypeScript share the same `window` object.
+**SVG export:** A custom plotly modebar button (clipboard icon, positioned left-most in the toolbar via `modeBarButtons`) calls `Plotly.toImage(gd, {format:'svg'})` to generate SVG client-side, then copies the raw SVG markup to clipboard via `document.execCommand('copy')` (the only clipboard API that works inside PBI's sandboxed iframe). A 3-second toast notification instructs the user to paste into Notepad and save as `.svg`. Defined entirely in `script.r` via `htmlwidgets::JS()` — no TypeScript changes needed. Overriding the default camera button's click handler was attempted (monkey-patching `Plotly.downloadImage`, DOM event interception) but plotly's internal pipeline could not be reliably intercepted inside PBI's HTML injection context, so a separate button is used instead.
 
 **Layout:** No plot title, tight margins (`l=60, r=10, t=20, b=30`), horizontal legend below the chart. "Today" annotation at `y=1.02, yref="paper"`.
 
@@ -210,7 +210,7 @@ Added black right-pointing arrow annotations for bars truncated by the X-axis ca
 - **Plotly's built-in download button** (`toImageButtonOptions = list(format = "svg")`) — generates SVG but PBI sandbox blocks the file save dialog in both Desktop and Service.
 - **PBI `IDownloadService` bridge** (Option A) — added `IDownloadService` import to `visual.ts`, exposed a `window.__pbiDownloadSVG` bridge function, added `ExportContent` privilege to `capabilities.json`, and created a custom modebar button in `script.r` that routed SVG through `downloadService.exportVisualsContent()`. Did not work. Fully rolled back.
 
-**Working solution (Option B):** Custom plotly modebar button that copies SVG to clipboard using the legacy `document.execCommand('copy')` API, which is allowed inside PBI's sandbox. Implementation is entirely in `script.r` — no TypeScript or `capabilities.json` changes required. The button uses `Plotly.toImage()` to generate SVG as a data URI, decodes it to raw SVG markup, copies via a hidden textarea, and shows a 2-second toast notification ("SVG copied to clipboard"). Users paste into a text editor and save as `.svg`, or paste directly into vector graphics tools.
+**Working solution (Option B):** Custom plotly modebar button (clipboard icon) that copies SVG to clipboard using the legacy `document.execCommand('copy')` API, which is allowed inside PBI's sandbox. Implementation is entirely in `script.r` — no TypeScript or `capabilities.json` changes required. The button uses `Plotly.toImage()` to generate SVG as a data URI, decodes it to raw SVG markup, copies via a hidden textarea, and shows a 3-second toast notification ("SVG copied! Paste into Notepad and save as .svg"). The button is positioned left-most in the modebar via `modeBarButtons` (which defines the full button layout) rather than `modeBarButtonsToAdd` (which appends to the right). Attempts to override the default camera icon's behavior — via `Plotly.downloadImage` monkey-patching and DOM click interception — failed because PBI's HTML injection pipeline prevents reliable script timing.
 
 ### Known Issues and Lessons Learned
 
@@ -226,6 +226,7 @@ Added black right-pointing arrow annotations for bars truncated by the X-axis ca
 | Scrolling with `height: 100%` | Resolved | Doesn't work in PBI container — use absolute positioning |
 | PBI sandbox blocks file downloads | Resolved | `<a download>`, `window.open()`, and `navigator.clipboard` are all blocked. Plotly's built-in download button generates SVG but can't save it. Workaround: copy to clipboard via `document.execCommand('copy')`. |
 | PBI `IDownloadService` bridge | Failed | Attempted routing SVG through `visual.ts` → `downloadService.exportVisualsContent()` with `ExportContent` privilege. Did not trigger a download. Rolled back. |
+| Overriding plotly camera button click | Failed | Attempted monkey-patching `Plotly.downloadImage` via `htmlwidgets::onRender()` and DOM click interception via injected `<script>`. Both failed — PBI's HTML injection pipeline (`htmlInjectionUtility.ts`) causes timing issues where `DOMContentLoaded` has already fired and `onRender` patches don't survive plotly's internal call chain. Used a separate custom button instead. |
 
 ## Tips
 
