@@ -347,6 +347,11 @@ if (!is.null(milestone_df) && nrow(milestone_df) > 0) {
   }
 }
 
+# --- Default: milestones off (hidden) ---
+for (j in seq_along(milestone_annotations)) {
+  milestone_annotations[[j]]$visible <- FALSE
+}
+
 # --- Build combined annotations list ---
 all_annotations <- list(
   list(
@@ -422,7 +427,7 @@ if (has_ms) {
         list(label = "Milestones On",  method = "relayout", args = list(args_on)),
         list(label = "Milestones Off", method = "relayout", args = list(args_off))
       ),
-      active = 0,
+      active = 1,
       showactive = TRUE
     )
   )
@@ -430,7 +435,7 @@ if (has_ms) {
 
 # --- Layout ---
 p <- layout(p,
-  height = chart_height,
+  height = if (has_ms) chart_height_no_ms else chart_height,
   title = FALSE,
   xaxis = list(
     title = list(text = "Year", font = list(size = 14)),

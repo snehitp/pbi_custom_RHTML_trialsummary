@@ -108,7 +108,7 @@ Browser — Interactive plotly chart with hover, zoom, pan
 
 **Bar text labels:** Mouse Over field values are rendered as plotly layout annotations positioned at the midpoint of each bar (clamped to the visible x-axis range). Values are pipe-delimited (`val1 | val2`) with no column names. Font is black, italic, size 11.
 
-**Milestone toggle:** When milestones are present, a plotly `updatemenus` button pair ("Milestones On" / "Milestones Off") appears above the chart. The off-state sets `annotations[i].visible = FALSE` for every milestone annotation (indices 1..N, since index 0 is the "Today" annotation) and reduces the chart height to 40px/bar. The on-state restores visibility and 150px/bar height.
+**Milestone toggle:** When milestones are present, a plotly `updatemenus` button pair ("Milestones On" / "Milestones Off") appears above the chart. The default state is **Off** — milestone annotations start hidden (`visible = FALSE`) and the chart uses the compact 40px/bar height. Clicking "Milestones On" sets `annotations[i].visible = TRUE` for every milestone annotation (indices 1..N, since index 0 is the "Today" annotation) and expands the chart to 150px/bar height.
 
 **Row count alignment:** PBI Service can send different row counts across data roles when "show items with no data" is enabled. The script computes `n_rows = min(nrow(...))` across all provided data roles and truncates each to a common length before joining.
 
@@ -241,6 +241,12 @@ Added a milestone toggle button ("Milestones On" / "Milestones Off") via plotly 
 
 **Bug:** Legend entries and tooltip text display stray backslash characters (e.g., `\Lori Muffly, MD\`).
 **Fix:** Added `strip_bs()` helper applying `gsub("\\\\", "", x)` to all displayed text fields.
+
+### v11: Milestone Default Off and Custom Icon
+
+Changed the milestone toggle default to **Off** — milestones start hidden and the chart renders at the compact 40px/bar height. Users click "Milestones On" to expand.
+
+Replaced the generic grey tools icon (`assets/icon.png`) with a custom 20x20 swimlane icon showing three staggered horizontal bars in blue, orange, and green (matching the D3 category20 palette).
 
 ### Known Issues and Lessons Learned
 
